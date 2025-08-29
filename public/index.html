@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Photos to Sheets</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        #container {
+            max-width: 600px;
+            margin: auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #4285F4;
+        }
+        button {
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #357ae8;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<div id="container">
+    <h1>Google Photos to Sheets</h1>
+    <p>Sign in with your Google account to authorize our app to get your photos and send links to our spreadsheet.</p>
+    <button id="signInButton">Sign in with Google</button>
+    <p id="status"></p>
+</div>
+
+<script type="module">
+    // Import the Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-functions.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyAyHiyzbJe4KSH5ffzCoH33kgXes87nukM",
+      authDomain: "photos-1b11d.firebaseapp.com",
+      projectId: "photos-1b11d",
+      storageBucket: "photos-1b11d.firebasestorage.app",
+      messagingSenderId: "503096629417",
+      appId: "1:503096629417:web:f1008ff8f1f5e381e5f1b8",
+      measurementId: "G-783XGQXZNT"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const functions = getFunctions(app);
+
+    const signInButton = document.getElementById('signInButton');
+    const status = document.getElementById('status');
+    const provider = new GoogleAuthProvider();
+    
+    // Add the Google Photos read-only scope
+    provider.addScope('https://www.googleapis.com/auth/photoslibrary.readonly');
+
+    // This block handles the redirect result after the user signs in
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result) {
+          const credential = GoogleAuthProvider.credentialFromResult(result);
+          const accessToken = credential.accessToken;
+          const user = result.user;
+
+          status.textContent = "Permissions granted. Processing photos...";
+          
+          // Call the Cloud Function
+          const processPhotos = httpsCallable(functions, 'processPhotos');
+          try {
+            const response = await processPhotos({ accessToken: accessToken });
+            if (response.data.success) {
+              status.textContent = "✅ Success! Photo links added to the Google Sheet.";
+            } else {
+              status.textContent = `❌ Failed to process photos. ${response.data.message}`;
+            }
+          } catch (error) {
+            console.error("Cloud Function call failed:", error);
+            status.textContent = `❌ Error: ${error.message}`;
+          }
+        }
+      }).catch((error) => {
+        console.error("Authentication error:", error);
+        status.textContent = `❌ Auth Error: ${error.message}`;
+      });
+
+    // Check auth state to show appropriate UI
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        signInButton.style.display = 'none';
+        status.textContent = `You are signed in as ${user.displayName}.`;
+      } else {
+        signInButton.style.display = 'block';
+        status.textContent = "Please sign in to continue.";
+      }
+    });
+
+    signInButton.addEventListener('click', () => {
+      // Initiate the sign-in redirect flow
+      signInWithRedirect(auth, provider);
+    });
+</script>
+
+</body>
+</html>
